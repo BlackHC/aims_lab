@@ -8,6 +8,7 @@ from scipy.stats import norm
 import argparse
 import csv
 
+
 #
 # Implements the HORUS probabilistic WiFi Localization system
 # ( Mobile and Sensor Networks course - University of Oxford )
@@ -16,12 +17,12 @@ import csv
 
 def init():
     print("")
-    print ('*' * 60)
-    print (' The Horus Localization System')
-    print (" Sensor Networks Course - University of Oxford")
-    print ('*' * 60)
-    print ("")
-    print ("")
+    print('*' * 60)
+    print(' The Horus Localization System')
+    print(" Sensor Networks Course - University of Oxford")
+    print('*' * 60)
+    print("")
+    print("")
     return
 
 
@@ -233,11 +234,70 @@ def predict(wifi_db, test_db, n_ap, n_samples):
     sys.stdout.write("-> Running Horus...")
 
     predicted_loc = np.zeros((len(test_db), 2))
+
+    num_test_samples = 50
+    for test_location in range(len(test_db)):
+        log_likelihoods = []
+        for location in range(len(wifi_db)):
+            log_likelihood = 0.
+            for ap in range(n_ap):
+                ap_loc = wifi_db[location, 3 + 2 * ap]
+                ap_scale = wifi_db[location, 3 + 1 + 2 * ap]
+                # print(ap_loc, ap_scale)
+                test_samples = test_db[test_location, 3 + num_test_samples * ap:][:num_test_samples]
+                log_likelihood += np.sum(norm.logpdf(test_samples, ap_loc, ap_scale))
+                # print(test_ss, log_likelihood)
+            log_likelihoods.append(log_likelihood)
+        best_location = np.argmax(np.array(log_likelihoods))
+        #print(best_location, len(log_likelihoods), len(wifi_db))
+        predicted_loc[test_location, :] = wifi_db[best_location, 1:3]
+
     actual_loc = test_db[:, 1:3]
 
-    # - - - - WRITE YOUR CODE HERE - - - - -
+    sys.stdout.write("done\n")
+    return actual_loc, predicted_loc
 
-    # - - - - - - - - - - - - - - - - - - - -
+
+def norm_kale(q_loc, q_scale, p_loc, p_scale):
+    """D_KL(p||q) == D_KL(q|p)"""
+    return np.log(q_scale / p_scale) + (p_scale ** 2 + (q_loc - p_loc) ** 2) / 2 / q_scale ** 2 - 0.5
+
+
+# The Horus probabilistic localization system
+def predict2(wifi_db, test_db, n_ap, n_samples):
+    """
+    :param wifi_db: The Wifi database
+    :param test_db: Wifi RSS points an the unknown locations
+    :param n_ap: Number of APs
+    :param n_samples: Samples per location
+    :return: The estimated locations
+    """
+
+    sys.stdout.write("-> Running Horus...")
+
+    predicted_loc = np.zeros((len(test_db), 2))
+
+    num_test_samples = 50
+    test_fit_db = fit_data(test_db, num_test_samples, n_ap)
+    for test_location in range(len(test_fit_db)):
+        kale_sums = []
+        for train_location in range(len(wifi_db)):
+            kale_sum = 0.
+            for ap in range(n_ap):
+                test_loc = test_fit_db[test_location, 3 + 2 * ap]
+                test_scale = test_fit_db[test_location, 3 + 1 + 2 * ap]
+
+                train_loc = wifi_db[train_location, 3 + 2 * ap]
+                train_scale = wifi_db[train_location, 3 + 1 + 2 * ap]
+
+                kale_sum += norm_kale(train_loc, train_scale, test_loc, test_scale)
+                #kale_sum += norm_kale(test_loc, test_scale, train_loc, train_scale)
+            kale_sums.append(kale_sum)
+
+        best_location = np.argmin(kale_sums)
+        predicted_loc[test_location, :] = wifi_db[best_location, 1:3]
+
+    actual_loc = test_db[:, 1:3]
 
     sys.stdout.write("done\n")
     return actual_loc, predicted_loc
@@ -310,55 +370,56 @@ def plot_error(actual_loc, predicted_loc):
     return
 
 
-# --------------------------------------------------------------
-# MAIN CODE
-# --------------------------------------------------------------
+if __name__ == '__main__':
+    # --------------------------------------------------------------
+    # MAIN CODE
+    # --------------------------------------------------------------
 
-# ----- Constants -----
-# Number of measurements per location
-nSamples = 60
+    # ----- Constants -----
+    # Number of measurements per location
+    nSamples = 60
 
-# ---- Configure Parameters -----
-# Select Dataset (set1 or set2)
-parser = argparse.ArgumentParser()
-parser.add_argument('-s','--data_set', choices={"set1", "set2"}, type=str, 
-    default='set1')
-args = parser.parse_args()
-data_set = args.data_set
+    # ---- Configure Parameters -----
+    # Select Dataset (set1 or set2)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-s', '--data_set', choices={"set1", "set2"}, type=str,
+                        default='set1')
+    args = parser.parse_args()
+    data_set = args.data_set
 
-# Visualize the RSS in location = loc
-loc = 2
+    # Visualize the RSS in location = loc
+    loc = 2
 
-# ----- Run System ------
+    # ----- Run System ------
 
-# set1 contains 3 access points and set2 5 access points
-if data_set == "set1":
-    nAP = 3
-else:
-    nAP = 5
+    # set1 contains 3 access points and set2 5 access points
+    if data_set == "set1":
+        nAP = 3
+    else:
+        nAP = 5
 
-init()
+    init()
 
-# Load the RSS measurements from file
-(trainDB, testDB) = load_wifi_data(data_set, nSamples, nAP)
+    # Load the RSS measurements from file
+    (trainDB, testDB) = load_wifi_data(data_set, nSamples, nAP)
 
-# Show fingerprint locations
-show_fingerprints(trainDB, nAP)
+    # Show fingerprint locations
+    show_fingerprints(trainDB, nAP)
 
-# Plot the RSS histogram and approximate it with a Gaussian
-plot_histogram(trainDB, loc, nAP, nSamples)
+    # Plot the RSS histogram and approximate it with a Gaussian
+    plot_histogram(trainDB, loc, nAP, nSamples)
 
-# Fit Gaussian distribution to the RSS measurements
-wifiDB = fit_data(trainDB, nSamples, nAP)
+    # Fit Gaussian distribution to the RSS measurements
+    wifiDB = fit_data(trainDB, nSamples, nAP)
 
-# Run the localization algorithm
-# Estimate the unknown location given RSS measurements at that location
-(actualLoc, predictedLoc) = predict(wifiDB, testDB, nAP, nSamples)
+    # Run the localization algorithm
+    # Estimate the unknown location given RSS measurements at that location
+    (actualLoc, predictedLoc) = predict(wifiDB, testDB, nAP, nSamples)
 
-# Visualize the actual and estimated locations
-# plot_path(actualLoc, predictedLoc, nAP)
+    # Visualize the actual and estimated locations
+    # plot_path(actualLoc, predictedLoc, nAP)
 
-# Plot the mean localization error and error CDF
-# plot_error(actualLoc, predictedLoc)
+    # Plot the mean localization error and error CDF
+    # plot_error(actualLoc, predictedLoc)
 
-ans = input("Press any key to exit")
+    ans = input("Press any key to exit")
