@@ -222,7 +222,7 @@ def plot_histogram(train_db, location, n_ap, n_samples):
 
 
 # The Horus probabilistic localization system
-def predict(wifi_db, test_db, n_ap, n_samples):
+def predict(wifi_db, test_db, n_ap, n_samples, num_test_samples = 50):
     """
     :param wifi_db: The Wifi database
     :param test_db: Wifi RSS points an the unknown locations
@@ -235,7 +235,6 @@ def predict(wifi_db, test_db, n_ap, n_samples):
 
     predicted_loc = np.zeros((len(test_db), 2))
 
-    num_test_samples = 50
     for test_location in range(len(test_db)):
         log_likelihoods = []
         for location in range(len(wifi_db)):
@@ -264,7 +263,7 @@ def norm_kale(q_loc, q_scale, p_loc, p_scale):
 
 
 # The Horus probabilistic localization system
-def predict2(wifi_db, test_db, n_ap, n_samples):
+def predict2(wifi_db, test_db, n_ap):
     """
     :param wifi_db: The Wifi database
     :param test_db: Wifi RSS points an the unknown locations
